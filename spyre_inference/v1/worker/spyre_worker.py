@@ -47,8 +47,25 @@ class TorchSpyreWorker(CPUWorker):
         # parent process. Without this, all workers open the same VFIO device.
         import os
         os.environ["LOCAL_RANK"] = str(local_rank)
+
+        # Ensure multi-device env vars are visible to the C++ runtime.
+        # flex::getNumDevices() reads these to determine how many devices exist.
+        # With spawn start method, env should be inherited, but log for debug.
+        world_size = os.environ.get("AIU_WORLD_SIZE")
+        spyre_devices = os.environ.get("SPYRE_DEVICES")
+        logger.info(
+            "TorchSpyreWorker pid=%d local_rank=%d rank=%d "
+            "AIU_WORLD_SIZE=%s SPYRE_DEVICES=%s",
+            os.getpid(), local_rank, rank, world_size, spyre_devices,
+        )
+
+        # If AIU_WORLD_SIZE isn't set, derive from tensor_parallel_size
+        if world_size is None:
+            tp_size = vllm_config.parallel_config.tensor_parallel_size
+            os.environ["AIU_WORLD_SIZE"] = str(tp_size)
+            logger.info("Set AIU_WORLD_SIZE=%d from tensor_parallel_size", tp_size)
+
         torch.spyre.set_device(local_rank)  # type: ignore[attr-defined]
-        logger.info("TorchSpyreWorker pid=%d local_rank=%d rank=%d", os.getpid(), local_rank, rank)
 
         super().__init__(
             vllm_config,
