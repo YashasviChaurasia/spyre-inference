@@ -56,6 +56,13 @@ class TorchSpyreWorker(CPUWorker):
         register_all()
 
     def init_device(self) -> None:
+        # Set the Spyre device for this TP worker BEFORE any torch operation
+        # can trigger torch_spyre._lazy_init(). Without this, all workers
+        # inherit LOCAL_RANK from the parent and open the same VFIO device.
+        import os
+        os.environ["LOCAL_RANK"] = str(self.local_rank)
+        torch.spyre.set_device(self.local_rank)  # type: ignore[attr-defined]
+
         # Patch the CPUModelRunner with the TorchSpyreModelRunner
         original = cpu_worker_module.CPUModelRunner
         cpu_worker_module.CPUModelRunner = lambda *a, **kw: TorchSpyreModelRunner(
