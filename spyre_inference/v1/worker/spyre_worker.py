@@ -48,6 +48,7 @@ class TorchSpyreWorker(CPUWorker):
         import os
         os.environ["LOCAL_RANK"] = str(local_rank)
         torch.spyre.set_device(local_rank)  # type: ignore[attr-defined]
+        logger.info("TorchSpyreWorker pid=%d local_rank=%d rank=%d", os.getpid(), local_rank, rank)
 
         super().__init__(
             vllm_config,
