@@ -42,6 +42,13 @@ class TorchSpyreWorker(CPUWorker):
         distributed_init_method: str,
         is_driver_worker: bool = False,
     ) -> None:
+        # Set Spyre device BEFORE any code path can trigger _lazy_init().
+        # In multiproc_executor, each TP worker inherits LOCAL_RANK from the
+        # parent process. Without this, all workers open the same VFIO device.
+        import os
+        os.environ["LOCAL_RANK"] = str(local_rank)
+        torch.spyre.set_device(local_rank)  # type: ignore[attr-defined]
+
         super().__init__(
             vllm_config,
             local_rank,
