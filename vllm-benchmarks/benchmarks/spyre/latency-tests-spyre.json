@@ -1,0 +1,18 @@
+[
+    {
+        "test_name": "latency_llama8B_tp1",
+        "environment_variables": {
+            "VLLM_CPU_KVCACHE_SPACE": 16,
+            "DTLOG_LEVEL": "error"
+        },
+        "parameters": {
+            "model": "ibm-granite/granite-3.3-8b-instruct",
+            "tensor_parallel_size": 1,
+            "dtype": "float16",
+            "load_format": "dummy",
+            "num-iters-warmup": 5,
+            "num-iters": 15,
+            "max-model-len": 256
+        }
+    }
+]

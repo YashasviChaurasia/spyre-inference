@@ -1,0 +1,53 @@
+name: Build spyre-inference
+description: |
+  Runs `uv sync` in the pre-cloned spyre-inference directory to reconcile the
+  pre-baked .venv against the freshly checked-out pyproject.toml + uv.lock,
+  and force-rebuilds spyre-inference from source.
+
+  uv sync only reinstalls vLLM/torch-spyre when the resolved version or
+  source differs from what's already installed. spyre-inference itself is
+  always rebuilt via --reinstall-package.
+
+inputs:
+  cloned-dir:
+    description: Path to the pre-cloned spyre-inference directory in the image.
+    required: false
+    default: /home/senuser/spyre-inference
+
+runs:
+  using: composite
+  steps:
+    - name: Build spyre-inference
+      shell: bash
+      env:
+        CLONED_SPYRE_INFERENCE_DIR: ${{ inputs.cloned-dir }}
+      run: |
+        source "$HOME/.bashrc"
+        source /etc/profile.d/ibm-aiu-setup.sh
+        cd "$CLONED_SPYRE_INFERENCE_DIR"
+        source .venv/bin/activate
+        uv sync \
+          --verbose \
+          --group dev \
+          --active \
+          --inexact \
+          --reinstall-package spyre-inference
+        echo "=== Installed versions ==="
+        uv pip show spyre-inference || true
+        uv pip show vllm || true
+        uv pip show torch-spyre || true
+        uv pip show torch || true
+
+    - name: Verify platform plugin
+      shell: bash
+      env:
+        CLONED_SPYRE_INFERENCE_DIR: ${{ inputs.cloned-dir }}
+      run: |
+        source "$HOME/.bashrc"
+        source /etc/profile.d/ibm-aiu-setup.sh
+        cd "$CLONED_SPYRE_INFERENCE_DIR"
+        source .venv/bin/activate
+        python3 -c "
+        from spyre_inference import register
+        print('spyre-inference platform plugin: OK')
+        "
