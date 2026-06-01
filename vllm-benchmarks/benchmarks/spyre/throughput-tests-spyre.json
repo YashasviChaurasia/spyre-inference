@@ -1,0 +1,20 @@
+[
+    {
+        "test_name": "throughput_llama8B_tp1",
+        "environment_variables": {
+            "VLLM_CPU_KVCACHE_SPACE": 16,
+            "DTLOG_LEVEL": "error"
+        },
+        "parameters": {
+            "model": "ibm-granite/granite-3.3-8b-instruct",
+            "tensor_parallel_size": 1,
+            "dtype": "float16",
+            "load_format": "dummy",
+            "dataset_path": "./ShareGPT_V3_unfiltered_cleaned_split.json",
+            "num_prompts": 100,
+            "backend": "vllm",
+            "max-model-len": 2048,
+            "max-num-seqs": 256
+        }
+    }
+]
