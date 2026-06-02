@@ -1,4 +1,4 @@
-import { Box, FormControl, InputLabel, MenuItem, Paper, Select, Typography } from "@mui/material";
+import { Box, FormControl, InputLabel, MenuItem, Paper, Select, Typography, Button } from "@mui/material";
 import { CommitInfo, BenchmarkResult, getComparisonData } from "../clickhouse/queries";
 import { useEffect, useState } from "react";
 
@@ -23,63 +23,115 @@ export function ComparisonView({ commits }: Props) {
 
   const commitOptions = commits.map((c) => ({
     value: c.head_sha,
-    label: `${c.head_sha.substring(0, 8)} (${c.head_branch} - ${c.date})`,
+    label: `${c.head_sha.substring(0, 7)} \u2022 ${c.date}`,
   }));
 
-  // Build comparison table
-  const metrics = [...new Set([...leftData, ...rightData].map((d) => d.metric))];
-  const comparison = metrics.map((metric) => {
-    const lVal = leftData.find((d) => d.metric === metric);
-    const rVal = rightData.find((d) => d.metric === metric);
-    const lNum = lVal ? parseFloat(lVal.value) : 0;
-    const rNum = rVal ? parseFloat(rVal.value) : 0;
-    const diff = lNum && rNum ? (((rNum - lNum) / lNum) * 100).toFixed(1) : "-";
-    return { metric, left: lNum.toFixed(2), right: rNum.toFixed(2), diff };
+  // Build pivot: rows = model+test_name, columns = metrics
+  const allMetrics = [...new Set([...leftData, ...rightData].map((d) => d.metric_name))].sort();
+  const allModels = [...new Set([...leftData, ...rightData].map((d) => d.model_name))];
+
+  const rows = allModels.map((model) => {
+    const leftByMetric: Record<string, number> = {};
+    const rightByMetric: Record<string, number> = {};
+
+    leftData.filter((d) => d.model_name === model).forEach((d) => {
+      leftByMetric[d.metric_name] = parseFloat(d.value) || 0;
+    });
+    rightData.filter((d) => d.model_name === model).forEach((d) => {
+      rightByMetric[d.metric_name] = parseFloat(d.value) || 0;
+    });
+
+    return { model_name: model, leftByMetric, rightByMetric };
   });
 
+  const formatChange = (left: number, right: number) => {
+    if (!left || !right) return { text: "-", color: "#555" };
+    const pct = ((right - left) / left) * 100;
+    // For latency/ttft/tpot: lower is better (green if negative)
+    // For throughput/rps: higher is better (green if positive)
+    const color = pct === 0 ? "#555" : pct < 0 ? "#4caf50" : "#f44336";
+    return { text: `${pct > 0 ? "+" : ""}${pct.toFixed(1)}%`, color };
+  };
+
   return (
-    <Paper sx={{ p: 2, bgcolor: "#16213e", mb: 2 }}>
-      <Typography variant="h6" color="#fff" gutterBottom>
-        Commit Comparison
+    <Paper sx={{ p: 2, bgcolor: "#141414", border: "1px solid #1e1e1e", mb: 2 }}>
+      <Typography variant="h6" color="#e0e0e0" gutterBottom>
+        Comparison Table
       </Typography>
-      <Box sx={{ display: "flex", gap: 2, mb: 2 }}>
-        <FormControl sx={{ minWidth: 250 }}>
-          <InputLabel sx={{ color: "#aaa" }}>Left Commit</InputLabel>
-          <Select value={leftSha} label="Left Commit" onChange={(e) => setLeftSha(e.target.value)} sx={{ color: "#fff" }}>
+
+      <Box sx={{ display: "flex", gap: 2, mb: 2, alignItems: "center" }}>
+        <FormControl size="small" sx={{ minWidth: 220 }}>
+          <InputLabel sx={{ color: "#555" }}>Base (left)</InputLabel>
+          <Select value={leftSha} label="Base (left)" onChange={(e) => setLeftSha(e.target.value)}
+            sx={{ color: "#ccc", fontSize: "0.8rem", ".MuiOutlinedInput-notchedOutline": { borderColor: "#2a2a2a" } }}>
             {commitOptions.map((c) => (
               <MenuItem key={c.value} value={c.value}>{c.label}</MenuItem>
             ))}
           </Select>
         </FormControl>
-        <FormControl sx={{ minWidth: 250 }}>
-          <InputLabel sx={{ color: "#aaa" }}>Right Commit</InputLabel>
-          <Select value={rightSha} label="Right Commit" onChange={(e) => setRightSha(e.target.value)} sx={{ color: "#fff" }}>
+        <Typography sx={{ color: "#555" }}>vs</Typography>
+        <FormControl size="small" sx={{ minWidth: 220 }}>
+          <InputLabel sx={{ color: "#555" }}>Compare (right)</InputLabel>
+          <Select value={rightSha} label="Compare (right)" onChange={(e) => setRightSha(e.target.value)}
+            sx={{ color: "#ccc", fontSize: "0.8rem", ".MuiOutlinedInput-notchedOutline": { borderColor: "#2a2a2a" } }}>
             {commitOptions.map((c) => (
               <MenuItem key={c.value} value={c.value}>{c.label}</MenuItem>
             ))}
           </Select>
         </FormControl>
+
+        {leftSha && rightSha && (
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <Button size="small" sx={{ color: "#5b9bd5", textTransform: "none", fontSize: "0.75rem" }}>
+              view json
+            </Button>
+            <Button size="small" sx={{ color: "#5b9bd5", textTransform: "none", fontSize: "0.75rem" }}>
+              Download CSV
+            </Button>
+          </Box>
+        )}
       </Box>
-      {comparison.length > 0 && (
+
+      {leftSha && rightSha && (
+        <Typography variant="caption" sx={{ color: "#666", display: "block", mb: 1 }}>
+          {leftSha.substring(0, 7)} &rarr; {rightSha.substring(0, 7)}
+        </Typography>
+      )}
+
+      {rows.length > 0 && (
         <Box sx={{ overflow: "auto" }}>
-          <table style={{ width: "100%", color: "#ccc", borderCollapse: "collapse" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid #333" }}>
-                <th style={{ textAlign: "left", padding: 8 }}>Metric</th>
-                <th style={{ textAlign: "right", padding: 8 }}>Left</th>
-                <th style={{ textAlign: "right", padding: 8 }}>Right</th>
-                <th style={{ textAlign: "right", padding: 8 }}>Change</th>
+              <tr style={{ borderBottom: "1px solid #2a2a2a" }}>
+                <th style={{ textAlign: "left", padding: "8px 12px", color: "#777", fontWeight: 600 }}>Model</th>
+                {allMetrics.map((m) => (
+                  <th key={m} style={{ textAlign: "right", padding: "8px 8px", color: "#777", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    {m}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {comparison.map((row) => (
-                <tr key={row.metric} style={{ borderBottom: "1px solid #222" }}>
-                  <td style={{ padding: 8 }}>{row.metric}</td>
-                  <td style={{ padding: 8, textAlign: "right" }}>{row.left}</td>
-                  <td style={{ padding: 8, textAlign: "right" }}>{row.right}</td>
-                  <td style={{ padding: 8, textAlign: "right", color: row.diff.startsWith("-") ? "#2ecc71" : "#e94560" }}>
-                    {row.diff}%
-                  </td>
+              {rows.map((row) => (
+                <tr key={row.model_name} style={{ borderBottom: "1px solid #1a1a1a" }}>
+                  <td style={{ padding: "8px 12px", color: "#5b9bd5" }}>{row.model_name}</td>
+                  {allMetrics.map((metric) => {
+                    const left = row.leftByMetric[metric];
+                    const right = row.rightByMetric[metric];
+                    const { text, color } = formatChange(left, right);
+                    const displayVal = right ? right.toFixed(2) : left ? left.toFixed(2) : "-";
+
+                    return (
+                      <td key={metric} style={{ textAlign: "right", padding: "8px 8px", whiteSpace: "nowrap" }}>
+                        <span style={{ color: "#ccc" }}>{displayVal}</span>
+                        {left && right && left !== right && (
+                          <span style={{ color, marginLeft: 4, fontSize: "0.72rem", fontWeight: 600 }}>
+                            {text}
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))}
             </tbody>

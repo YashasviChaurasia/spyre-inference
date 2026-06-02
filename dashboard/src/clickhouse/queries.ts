@@ -11,11 +11,11 @@ export interface BenchmarkResult {
   timestamp: number;
   head_sha: string;
   head_branch: string;
-  model: string;
-  metric: string;
+  model_name: string;
+  metric_name: string;
   value: string;
   test_name: string;
-  device: string;
+  device_name: string;
 }
 
 export interface FilterOptions {
@@ -29,102 +29,92 @@ const DEFAULT_BENCHMARK = "spyre_e2e_benchmark";
 
 export async function listCommits(
   startTime: number,
-  stopTime: number,
-  repo: string = DEFAULT_REPO,
-  benchmarkName: string = DEFAULT_BENCHMARK
+  stopTime: number
 ): Promise<CommitInfo[]> {
   return queryClickhouse(
     `SELECT DISTINCT
       head_branch, head_sha, workflow_id,
-      toStartOfHour(fromUnixTimestamp(intDiv(timestamp, 1000))) AS date
+      formatDateTime(fromUnixTimestamp(intDiv(timestamp, 1000)), '%Y-%m-%d %H:%i') AS date
     FROM run_metadata
-    WHERE repo = {repo:String}
-      AND timestamp >= {startTime:Int64}
-      AND timestamp < {stopTime:Int64}
-      AND (benchmark_name = {benchmarkName:String} OR {benchmarkName:String} = '')
+    WHERE repo = '${DEFAULT_REPO}'
+      AND timestamp >= ${startTime}
+      AND timestamp < ${stopTime}
+      AND benchmark_name = '${DEFAULT_BENCHMARK}'
       AND notEmpty(metric_name)
       AND notEmpty(device)
-    GROUP BY head_branch, head_sha, workflow_id, date
-    ORDER BY date DESC`,
-    { repo, startTime, stopTime, benchmarkName }
+    ORDER BY date DESC`
   );
 }
 
 export async function getTimeSeriesData(
   startTime: number,
   stopTime: number,
-  repo: string = DEFAULT_REPO,
-  benchmarkName: string = DEFAULT_BENCHMARK,
+  _repo?: string,
+  _benchmarkName?: string,
   model: string = "",
   metric: string = ""
 ): Promise<BenchmarkResult[]> {
-  return queryClickhouse(
-    `SELECT
+  let sql = `SELECT
       timestamp,
       head_sha,
       head_branch,
-      tupleElement(model, 'name') AS model,
-      tupleElement(metric, 'name') AS metric,
+      tupleElement(model, 'name') AS model_name,
+      tupleElement(metric, 'name') AS metric_name,
       extra['value'] AS value,
       tupleElement(benchmark, 'extra_info')['test_name'] AS test_name,
-      tupleElement(runners, 'name') AS device
+      tupleElement(runners, 'name') AS device_name
     FROM results_v3
-    WHERE repo = {repo:String}
-      AND timestamp >= {startTime:Int64}
-      AND timestamp < {stopTime:Int64}
-      AND tupleElement(benchmark, 'name') = {benchmarkName:String}
-      AND (tupleElement(model, 'name') = {model:String} OR {model:String} = '')
-      AND (tupleElement(metric, 'name') = {metric:String} OR {metric:String} = '')
-    ORDER BY timestamp`,
-    { repo, startTime, stopTime, benchmarkName, model, metric }
-  );
+    WHERE repo = '${DEFAULT_REPO}'
+      AND timestamp >= ${startTime}
+      AND timestamp < ${stopTime}
+      AND tupleElement(benchmark, 'name') = '${DEFAULT_BENCHMARK}'`;
+
+  if (model) sql += ` AND tupleElement(model, 'name') = '${model}'`;
+  if (metric) sql += ` AND tupleElement(metric, 'name') = '${metric}'`;
+  sql += ` ORDER BY timestamp`;
+
+  return queryClickhouse(sql);
 }
 
-export async function getFilterOptions(
-  repo: string = DEFAULT_REPO,
-  benchmarkName: string = DEFAULT_BENCHMARK
-): Promise<FilterOptions> {
+export async function getFilterOptions(): Promise<FilterOptions> {
   const rows = await queryClickhouse(
     `SELECT DISTINCT
-      tupleElement(model, 'name') AS model,
-      tupleElement(metric, 'name') AS metric,
-      tupleElement(runners, 'name') AS device
+      tupleElement(model, 'name') AS model_name,
+      tupleElement(metric, 'name') AS metric_name,
+      tupleElement(runners, 'name') AS device_name
     FROM results_v3
-    WHERE repo = {repo:String}
-      AND tupleElement(benchmark, 'name') = {benchmarkName:String}`,
-    { repo, benchmarkName }
+    WHERE repo = '${DEFAULT_REPO}'
+      AND tupleElement(benchmark, 'name') = '${DEFAULT_BENCHMARK}'`
   );
 
   return {
-    models: [...new Set(rows.map((r) => r.model).filter(Boolean))],
-    metrics: [...new Set(rows.map((r) => r.metric).filter(Boolean))],
-    devices: [...new Set(rows.map((r) => r.device).filter(Boolean))],
+    models: [...new Set(rows.map((r: any) => r.model_name).filter(Boolean))],
+    metrics: [...new Set(rows.map((r: any) => r.metric_name).filter(Boolean))],
+    devices: [...new Set(rows.map((r: any) => r.device_name).filter(Boolean))],
   };
 }
 
 export async function getComparisonData(
   sha1: string,
-  sha2: string,
-  repo: string = DEFAULT_REPO,
-  benchmarkName: string = DEFAULT_BENCHMARK
+  sha2: string
 ): Promise<{ left: BenchmarkResult[]; right: BenchmarkResult[] }> {
-  const query = `SELECT
+  const query = (sha: string) => `SELECT
       timestamp,
       head_sha,
       head_branch,
-      tupleElement(model, 'name') AS model,
-      tupleElement(metric, 'name') AS metric,
+      tupleElement(model, 'name') AS model_name,
+      tupleElement(metric, 'name') AS metric_name,
       extra['value'] AS value,
       tupleElement(benchmark, 'extra_info')['test_name'] AS test_name,
-      tupleElement(runners, 'name') AS device
+      tupleElement(runners, 'name') AS device_name
     FROM results_v3
-    WHERE repo = {repo:String}
-      AND tupleElement(benchmark, 'name') = {benchmarkName:String}
-      AND head_sha = {sha:String}`;
+    WHERE repo = '${DEFAULT_REPO}'
+      AND tupleElement(benchmark, 'name') = '${DEFAULT_BENCHMARK}'
+      AND head_sha = '${sha}'`;
 
   const [left, right] = await Promise.all([
-    queryClickhouse(query, { repo, benchmarkName, sha: sha1 }),
-    queryClickhouse(query, { repo, benchmarkName, sha: sha2 }),
+    queryClickhouse(query(sha1)),
+    queryClickhouse(query(sha2)),
   ]);
 
   return { left, right };

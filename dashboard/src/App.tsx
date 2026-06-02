@@ -1,12 +1,9 @@
 import { useState, useEffect } from "react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
-import { CssBaseline, Typography, Box, CircularProgress } from "@mui/material";
-import { Layout } from "./components/Layout";
-import { Filters } from "./components/Filters";
-import { TimeSeriesChart } from "./components/TimeSeriesChart";
-import { ComparisonView } from "./components/ComparisonView";
-import { DataTable } from "./components/DataTable";
-import { useAuth } from "./auth/useAuth";
+import { CssBaseline, Box, CircularProgress, Typography } from "@mui/material";
+import { NavBar } from "./components/NavBar";
+import { Sidebar } from "./components/Sidebar";
+import { MainContent } from "./components/MainContent";
 import {
   listCommits,
   getTimeSeriesData,
@@ -17,7 +14,18 @@ import {
 } from "./clickhouse/queries";
 
 const darkTheme = createTheme({
-  palette: { mode: "dark", primary: { main: "#e94560" } },
+  palette: {
+    mode: "dark",
+    primary: { main: "#5b9bd5" },
+    background: { default: "#0c0c0c", paper: "#141414" },
+    text: { primary: "#e0e0e0", secondary: "#777" },
+    warning: { main: "#e6a817" },
+    error: { main: "#d44" },
+    success: { main: "#4caf50" },
+  },
+  typography: {
+    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
+  },
 });
 
 function getDefaultDateRange() {
@@ -31,7 +39,6 @@ function getDefaultDateRange() {
 }
 
 export default function App() {
-  const { isAuthenticated, user, login, logout } = useAuth();
   const defaultDates = getDefaultDateRange();
 
   const [startDate, setStartDate] = useState(defaultDates.start);
@@ -39,6 +46,7 @@ export default function App() {
   const [selectedModel, setSelectedModel] = useState("");
   const [selectedMetric, setSelectedMetric] = useState("");
   const [selectedDevice, setSelectedDevice] = useState("");
+  const [selectedBranch, setSelectedBranch] = useState("main");
 
   const [commits, setCommits] = useState<CommitInfo[]>([]);
   const [data, setData] = useState<BenchmarkResult[]>([]);
@@ -49,15 +57,11 @@ export default function App() {
   const startMs = new Date(startDate + "T00:00:00Z").getTime();
   const endMs = new Date(endDate + "T23:59:59Z").getTime();
 
-  // Load filter options
   useEffect(() => {
-    if (!isAuthenticated) return;
-    getFilterOptions().then(setFilters).catch((e) => setError(e.message));
-  }, [isAuthenticated]);
+        getFilterOptions().then(setFilters).catch((e) => setError(e.message));
+  }, []);
 
-  // Load commits + data when filters change
   useEffect(() => {
-    if (!isAuthenticated) return;
     setLoading(true);
     setError("");
 
@@ -71,62 +75,54 @@ export default function App() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [isAuthenticated, startDate, endDate, selectedModel, selectedMetric]);
+  }, [startDate, endDate, selectedModel, selectedMetric]);
+
+  const branches = [...new Set(commits.map((c) => c.head_branch))];
 
   return (
     <ThemeProvider theme={darkTheme}>
       <CssBaseline />
-      <Layout
-        isAuthenticated={isAuthenticated}
-        user={user}
-        onLogin={login}
-        onLogout={logout}
-      >
-        {!isAuthenticated ? (
-          <Box sx={{ textAlign: "center", mt: 10 }}>
-            <Typography variant="h4" color="#fff" gutterBottom>
-              Spyre vLLM Benchmark Dashboard
-            </Typography>
-            <Typography color="#aaa" sx={{ mb: 3 }}>
-              Sign in with GitHub to view benchmark results
-            </Typography>
-          </Box>
-        ) : (
-          <>
-            <Filters
-              filters={filters}
+      <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+        <NavBar />
+
+        <Box sx={{ display: "flex", flex: 1 }}>
+          <Sidebar
+              startDate={startDate}
+              endDate={endDate}
               selectedModel={selectedModel}
               selectedMetric={selectedMetric}
               selectedDevice={selectedDevice}
-              startDate={startDate}
-              endDate={endDate}
+              selectedBranch={selectedBranch}
+              filters={filters}
+              branches={branches}
+              onStartDateChange={setStartDate}
+              onEndDateChange={setEndDate}
               onModelChange={setSelectedModel}
               onMetricChange={setSelectedMetric}
               onDeviceChange={setSelectedDevice}
-              onStartDateChange={setStartDate}
-              onEndDateChange={setEndDate}
+              onBranchChange={setSelectedBranch}
             />
 
-            {error && (
-              <Typography color="error" sx={{ mb: 2 }}>
-                {error}
-              </Typography>
-            )}
-
-            {loading ? (
-              <Box sx={{ textAlign: "center", mt: 5 }}>
-                <CircularProgress />
-              </Box>
-            ) : (
-              <>
-                <TimeSeriesChart data={data} title="Benchmark Metrics Over Time" />
-                <ComparisonView commits={commits} />
-                <DataTable data={data} />
-              </>
-            )}
-          </>
-        )}
-      </Layout>
+            <Box sx={{ flex: 1, p: 3, overflow: "auto" }}>
+              {error && (
+                <Typography color="error" sx={{ mb: 2 }}>
+                  {error}
+                </Typography>
+              )}
+              {loading ? (
+                <Box sx={{ display: "flex", justifyContent: "center", mt: 5 }}>
+                  <CircularProgress />
+                </Box>
+              ) : (
+                <MainContent
+                  data={data}
+                  commits={commits}
+                  selectedBranch={selectedBranch}
+                />
+              )}
+            </Box>
+          </Box>
+      </Box>
     </ThemeProvider>
   );
 }
