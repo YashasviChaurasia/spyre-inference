@@ -2,7 +2,7 @@ import {
   Box, Typography, TextField, FormControl, InputLabel, Select, MenuItem,
   Divider, Chip, Button,
 } from "@mui/material";
-import { FilterOptions } from "../clickhouse/queries";
+interface FilterOptions { models: string[]; metrics: string[]; devices: string[]; }
 
 interface Props {
   startDate: string;

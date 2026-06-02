@@ -3,7 +3,7 @@ import {
   TableHead, TableRow, Typography, TableSortLabel,
 } from "@mui/material";
 import { useState } from "react";
-import { BenchmarkResult } from "../clickhouse/queries";
+interface BenchmarkResult { timestamp: number; head_sha: string; head_branch: string; model_name: string; metric_name: string; value: string; test_name: string; device_name: string; }
 
 interface Props {
   data: BenchmarkResult[];

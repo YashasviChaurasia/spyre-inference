@@ -1,5 +1,6 @@
 import { Box, FormControl, InputLabel, MenuItem, Paper, Select, Typography, Button } from "@mui/material";
-import { CommitInfo, BenchmarkResult, getComparisonData } from "../clickhouse/queries";
+interface CommitInfo { head_branch: string; head_sha: string; workflow_id: number; date: string; }
+interface BenchmarkResult { timestamp: number; head_sha: string; head_branch: string; model_name: string; metric_name: string; value: string; test_name: string; device_name: string; }
 import { useEffect, useState } from "react";
 
 interface Props {
@@ -14,10 +15,9 @@ export function ComparisonView({ commits }: Props) {
 
   useEffect(() => {
     if (leftSha && rightSha) {
-      getComparisonData(leftSha, rightSha).then(({ left, right }) => {
-        setLeftData(left);
-        setRightData(right);
-      });
+      fetch(`/api/benchmark/comparison?left=${leftSha}&right=${rightSha}`)
+        .then((r) => r.json())
+        .then(({ left, right }) => { setLeftData(left); setRightData(right); });
     }
   }, [leftSha, rightSha]);
 

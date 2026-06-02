@@ -2,7 +2,8 @@ import { Box, Typography, FormControl, Select, MenuItem, Chip } from "@mui/mater
 import { TimeSeriesChart } from "./TimeSeriesChart";
 import { ComparisonView } from "./ComparisonView";
 import { DataTable } from "./DataTable";
-import { CommitInfo, BenchmarkResult } from "../clickhouse/queries";
+interface CommitInfo { head_branch: string; head_sha: string; workflow_id: number; date: string; }
+interface BenchmarkResult { timestamp: number; head_sha: string; head_branch: string; model_name: string; metric_name: string; value: string; test_name: string; device_name: string; }
 import { useState } from "react";
 
 interface Props {

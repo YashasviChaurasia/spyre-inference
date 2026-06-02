@@ -2,7 +2,7 @@ import { Paper, Typography } from "@mui/material";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
-import { BenchmarkResult } from "../clickhouse/queries";
+interface BenchmarkResult { timestamp: number; head_sha: string; head_branch: string; model_name: string; metric_name: string; value: string; test_name: string; device_name: string; }
 
 interface Props {
   data: BenchmarkResult[];
