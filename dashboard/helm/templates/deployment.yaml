@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      initContainers:
+        - name: inject-config
+          image: alpine:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              INDEX=/html/index.html
+              if [ ! -f "$INDEX" ]; then
+                echo "ERROR: index.html not found"
+                exit 1
+              fi
+              sed -i "s|content=\"\" name=\"spyre-ch-url\"|content=\"${CH_URL}\" name=\"spyre-ch-url\"|" "$INDEX" || true
+              sed -i "s|name=\"spyre-ch-url\" content=\"\"|name=\"spyre-ch-url\" content=\"${CH_URL}\"|" "$INDEX"
+              sed -i "s|name=\"spyre-ch-user\" content=\"default\"|name=\"spyre-ch-user\" content=\"${CH_USER}\"|" "$INDEX"
+              sed -i "s|name=\"spyre-ch-token\" content=\"\"|name=\"spyre-ch-token\" content=\"${CH_PASSWORD}\"|" "$INDEX"
+              sed -i "s|name=\"spyre-ch-db\" content=\"vllm_benchmarks\"|name=\"spyre-ch-db\" content=\"${CH_DB}\"|" "$INDEX"
+              sed -i "s|name=\"github-client-id\" content=\"\"|name=\"github-client-id\" content=\"${GITHUB_CLIENT_ID}\"|" "$INDEX"
+              echo "Config injected into index.html"
+          env:
+            - name: CH_URL
+              value: {{ .Values.clickhouse.url | quote }}
+            - name: CH_USER
+              value: {{ .Values.clickhouse.user | quote }}
+            - name: CH_PASSWORD
+              value: {{ .Values.secrets.clickhousePassword | quote }}
+            - name: CH_DB
+              value: {{ .Values.clickhouse.database | quote }}
+            - name: GITHUB_CLIENT_ID
+              value: {{ .Values.github.clientId | quote }}
+          volumeMounts:
+            - name: html
+              mountPath: /html
+      containers:
+        - name: nginx
+          image: {{ .Values.image }}
+          ports:
+            - containerPort: {{ .Values.port }}
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/nginx/html
+          livenessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /
+              port: {{ .Values.port }}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+      volumes:
+        - name: html
+          emptyDir: {}

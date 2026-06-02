@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spyre vLLM Benchmark Dashboard</title>
+    <!-- ClickHouse config injected at deploy time by init container -->
+    <meta name="spyre-ch-url" content="" />
+    <meta name="spyre-ch-user" content="default" />
+    <meta name="spyre-ch-token" content="" />
+    <meta name="spyre-ch-db" content="vllm_benchmarks" />
+    <!-- GitHub OAuth -->
+    <meta name="github-client-id" content="" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

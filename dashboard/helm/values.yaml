@@ -1,0 +1,21 @@
+namespace: spyre-cdev
+
+image: ""
+
+replicas: 1
+port: 8080
+
+route:
+  enabled: true
+  host: ""
+
+clickhouse:
+  url: ""
+  user: default
+  database: vllm_benchmarks
+
+github:
+  clientId: ""
+
+secrets:
+  clickhousePassword: ""
