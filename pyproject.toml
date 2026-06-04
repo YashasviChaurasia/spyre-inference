@@ -17,7 +17,6 @@ dependencies = [
     # Listing as direct deps to ensure they're picked up from the correct index.
     # Versions intentionally left out because these are dependencies of dependencies.
     "torch",
-    "torchvision",
 ]
 requires-python = ">=3.11"
 dynamic = ["version"]
@@ -56,6 +55,9 @@ override-dependencies = [
     "triton; sys_platform == 'never'",
     "arctic-inference; sys_platform == 'never'",
     "perf-analyzer; sys_platform == 'never'",
+    # torchvision is incompatible with base image torch (operator torchvision::nms does not exist)
+    # Not needed for text LLM inference — only pulled transitively by transformers
+    "torchvision; sys_platform == 'never'",
 
     # Skip packages on s390x and ppc64le that are expected to be pre-installed
     "vllm ; platform_machine not in 's390x, ppc64le'",
@@ -95,9 +97,6 @@ extra-build-variables = { vllm = { VLLM_TARGET_DEVICE = "cpu" } }
 vllm = { git = "https://github.com/vllm-project/vllm", rev = "v0.20.1" }
 torch-spyre = { git = "https://github.com/torch-spyre/torch-spyre", rev = "ee37a9de5aaa33995fcbeac36ca1b1131677ce6f" }
 torch = [
-  { index = "pytorch-cpu" },
-]
-torchvision = [
   { index = "pytorch-cpu" },
 ]
 # Testing plugin package
